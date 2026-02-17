@@ -1,0 +1,18 @@
+{
+  "tests": [
+    {
+      "name": "Callback without token",
+      "method": "POST",
+      "path": "/?action=callback",
+      "body": {},
+      "expectedStatus": 400
+    },
+    {
+      "name": "Unknown action",
+      "method": "POST",
+      "path": "/?action=unknown",
+      "body": {},
+      "expectedStatus": 400
+    }
+  ]
+}
