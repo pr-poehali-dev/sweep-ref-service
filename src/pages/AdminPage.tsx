@@ -148,6 +148,7 @@ const AdminPage = () => {
               setSelectedRestaurant={setSelectedRestaurant}
               dateRange={dateRange}
               setDateRange={setDateRange}
+              onDataChanged={fetchData}
             />
           </TabsContent>
 

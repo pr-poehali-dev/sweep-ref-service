@@ -14,12 +14,16 @@ const HostessPage = () => {
   const [restaurant, setRestaurant] = useState<Restaurant | null>(null);
   const [sources, setSources] = useState<SourceOption[]>([]);
   const [submitted, setSubmitted] = useState(false);
+  const [lastSource, setLastSource] = useState("");
+  const [lastResponseId, setLastResponseId] = useState<number | null>(null);
   const [loading, setLoading] = useState(false);
   const [notFound, setNotFound] = useState(false);
   const [needsAuth, setNeedsAuth] = useState(false);
   const [password, setPassword] = useState("");
   const [authLoading, setAuthLoading] = useState(false);
   const [initialLoading, setInitialLoading] = useState(true);
+  const [todayCount, setTodayCount] = useState(0);
+  const [undoTimer, setUndoTimer] = useState(0);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -33,10 +37,30 @@ const HostessPage = () => {
         if (data.restaurant && !authed) {
           setNeedsAuth(true);
         }
+        return apiCall("sweep-api", {
+          method: "POST",
+          body: JSON.stringify({ action: "get_today_count", restaurant_id: data.restaurant.id }),
+        });
       })
+      .then((data) => setTodayCount(data.today_count || 0))
       .catch(() => setNotFound(true))
       .finally(() => setInitialLoading(false));
   }, [slug]);
+
+  useEffect(() => {
+    if (undoTimer <= 0) return;
+    const interval = setInterval(() => {
+      setUndoTimer((t) => {
+        if (t <= 1) {
+          setSubmitted(false);
+          setLastResponseId(null);
+          return 0;
+        }
+        return t - 1;
+      });
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [undoTimer]);
 
   const handleAuth = async () => {
     if (!restaurant || !password) return;
@@ -55,19 +79,39 @@ const HostessPage = () => {
   };
 
   const handleSource = async (sourceKey: string) => {
-    if (!restaurant) return;
+    if (!restaurant || loading) return;
     setLoading(true);
     try {
-      await apiCall("sweep-api", {
+      const data = await apiCall("sweep-api", {
         method: "POST",
         body: JSON.stringify({ action: "add_response", restaurant_id: restaurant.id, source: sourceKey }),
       });
+      setLastResponseId(data.response_id);
+      setLastSource(sources.find((s) => s.key === sourceKey)?.label || sourceKey);
+      setTodayCount(data.today_count || todayCount + 1);
       setSubmitted(true);
-      setTimeout(() => setSubmitted(false), 2000);
+      setUndoTimer(5);
     } catch {
       toast({ title: "Ошибка", description: "Не удалось сохранить ответ", variant: "destructive" });
     }
     setLoading(false);
+  };
+
+  const handleUndo = async () => {
+    if (!restaurant || !lastResponseId) return;
+    try {
+      const data = await apiCall("sweep-api", {
+        method: "POST",
+        body: JSON.stringify({ action: "undo_response", response_id: lastResponseId, restaurant_id: restaurant.id }),
+      });
+      setTodayCount(data.today_count);
+      setLastResponseId(null);
+      setSubmitted(false);
+      setUndoTimer(0);
+      toast({ title: "Ответ отменён" });
+    } catch {
+      toast({ title: "Не удалось отменить", variant: "destructive" });
+    }
   };
 
   if (initialLoading) {
@@ -121,7 +165,17 @@ const HostessPage = () => {
             <Icon name="Check" size={40} className="text-primary" />
           </div>
           <h2 className="text-2xl font-semibold text-foreground mb-2">Спасибо!</h2>
-          <p className="text-muted-foreground">Ответ записан</p>
+          <p className="text-muted-foreground mb-1">Ответ записан: <span className="font-medium text-foreground">{lastSource}</span></p>
+          <p className="text-sm text-muted-foreground mb-6">
+            Сегодня: <span className="font-bold text-primary">{todayCount}</span> ответов
+          </p>
+          {lastResponseId && undoTimer > 0 && (
+            <Button variant="outline" size="sm" onClick={handleUndo} className="mb-3">
+              <Icon name="Undo2" size={14} className="mr-1.5" />
+              Отменить ({undoTimer}с)
+            </Button>
+          )}
+          <p className="text-xs text-muted-foreground animate-pulse">Возврат через {undoTimer}с...</p>
         </div>
       </div>
     );
@@ -140,9 +194,9 @@ const HostessPage = () => {
           {sources.map((source, i) => (
             <Card
               key={source.key}
-              className="group cursor-pointer border border-border/60 hover:border-primary/30 hover:shadow-md transition-all duration-200"
+              className="group cursor-pointer border border-border/60 hover:border-primary/30 hover:shadow-md transition-all duration-200 active:scale-[0.98]"
               style={{ animationDelay: `${i * 50}ms` }}
-              onClick={() => !loading && handleSource(source.key)}
+              onClick={() => handleSource(source.key)}
             >
               <div className="flex items-center gap-4 p-4">
                 <div className="w-10 h-10 rounded-lg bg-primary/5 group-hover:bg-primary/10 flex items-center justify-center transition-colors">
@@ -154,6 +208,16 @@ const HostessPage = () => {
             </Card>
           ))}
         </div>
+
+        {todayCount > 0 && (
+          <div className="mt-6 text-center animate-fade-in">
+            <div className="inline-flex items-center gap-2 bg-white/80 border border-border/40 rounded-full px-4 py-2 text-sm">
+              <Icon name="BarChart3" size={14} className="text-primary" />
+              <span className="text-muted-foreground">Сегодня:</span>
+              <span className="font-bold text-primary">{todayCount}</span>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

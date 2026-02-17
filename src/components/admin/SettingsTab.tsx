@@ -1,9 +1,19 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import Icon from "@/components/ui/icon";
 import { apiCall, type Restaurant, type SourceOption } from "@/lib/store";
 import { useToast } from "@/hooks/use-toast";
@@ -30,6 +40,12 @@ const SettingsTab = ({ restaurants, sources, onDataChanged }: SettingsTabProps) 
   const [newSourceKey, setNewSourceKey] = useState("");
   const [newSourceLabel, setNewSourceLabel] = useState("");
   const [savingSource, setSavingSource] = useState(false);
+
+  const [deleteRestId, setDeleteRestId] = useState<number | null>(null);
+  const [deleteSourceId, setDeleteSourceId] = useState<number | null>(null);
+
+  const dragItem = useRef<number | null>(null);
+  const dragOverItem = useRef<number | null>(null);
 
   const handleCreateRestaurant = async () => {
     if (!newRestName.trim()) return;
@@ -64,6 +80,21 @@ const SettingsTab = ({ restaurants, sources, onDataChanged }: SettingsTabProps) 
       toast({ title: "Ошибка", variant: "destructive" });
     }
     setSavingRest(false);
+  };
+
+  const handleDeleteRestaurant = async () => {
+    if (!deleteRestId) return;
+    try {
+      await apiCall("sweep-api", {
+        method: "POST",
+        body: JSON.stringify({ action: "delete_restaurant", restaurant_id: deleteRestId }),
+      });
+      toast({ title: "Ресторан удалён" });
+      onDataChanged();
+    } catch {
+      toast({ title: "Ошибка", variant: "destructive" });
+    }
+    setDeleteRestId(null);
   };
 
   const handleResetPassword = async (id: number) => {
@@ -130,6 +161,57 @@ const SettingsTab = ({ restaurants, sources, onDataChanged }: SettingsTabProps) 
     setSavingSource(false);
   };
 
+  const handleDeleteSource = async () => {
+    if (!deleteSourceId) return;
+    try {
+      await apiCall("sweep-api", {
+        method: "POST",
+        body: JSON.stringify({ action: "delete_source", source_id: deleteSourceId }),
+      });
+      toast({ title: "Вариант удалён" });
+      onDataChanged();
+    } catch {
+      toast({ title: "Ошибка", variant: "destructive" });
+    }
+    setDeleteSourceId(null);
+  };
+
+  const handleDragStart = (index: number) => {
+    dragItem.current = index;
+  };
+
+  const handleDragOver = (e: React.DragEvent, index: number) => {
+    e.preventDefault();
+    dragOverItem.current = index;
+  };
+
+  const handleDrop = async () => {
+    if (dragItem.current === null || dragOverItem.current === null) return;
+    if (dragItem.current === dragOverItem.current) return;
+
+    const reordered = [...sources];
+    const [removed] = reordered.splice(dragItem.current, 1);
+    reordered.splice(dragOverItem.current, 0, removed);
+
+    dragItem.current = null;
+    dragOverItem.current = null;
+
+    try {
+      await apiCall("sweep-api", {
+        method: "POST",
+        body: JSON.stringify({ action: "reorder_sources", order: reordered.map((s) => s.id) }),
+      });
+      onDataChanged();
+    } catch {
+      toast({ title: "Ошибка сортировки", variant: "destructive" });
+    }
+  };
+
+  const copyToClipboard = (text: string) => {
+    navigator.clipboard.writeText(text);
+    toast({ title: "Скопировано" });
+  };
+
   const currentHost = typeof window !== "undefined" ? window.location.origin : "";
 
   return (
@@ -167,16 +249,23 @@ const SettingsTab = ({ restaurants, sources, onDataChanged }: SettingsTabProps) 
                     <Button size="sm" variant="ghost" onClick={() => { setEditingId(r.id); setEditName(r.name); }}>
                       <Icon name="Pencil" size={14} />
                     </Button>
+                    <Button size="sm" variant="ghost" className="text-destructive hover:text-destructive" onClick={() => setDeleteRestId(r.id)}>
+                      <Icon name="Trash2" size={14} />
+                    </Button>
                   </>
                 )}
               </div>
 
               {r.slug && (
-                <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                <div
+                  className="flex items-center gap-2 text-xs text-muted-foreground cursor-pointer hover:text-foreground transition-colors"
+                  onClick={() => copyToClipboard(`${currentHost}/r/${r.slug}`)}
+                >
                   <Icon name="Link" size={12} />
-                  <code className="bg-white px-2 py-1 rounded border text-xs select-all">
+                  <code className="bg-white px-2 py-1 rounded border text-xs">
                     {currentHost}/r/{r.slug}
                   </code>
+                  <Icon name="Copy" size={12} className="opacity-50" />
                 </div>
               )}
 
@@ -186,8 +275,13 @@ const SettingsTab = ({ restaurants, sources, onDataChanged }: SettingsTabProps) 
                   Сгенерировать пароль
                 </Button>
                 {generatedPasswords[r.id] && (
-                  <Badge variant="secondary" className="font-mono text-sm select-all">
+                  <Badge
+                    variant="secondary"
+                    className="font-mono text-sm cursor-pointer hover:bg-secondary/80"
+                    onClick={() => copyToClipboard(generatedPasswords[r.id])}
+                  >
                     {generatedPasswords[r.id]}
+                    <Icon name="Copy" size={10} className="ml-1.5 opacity-50" />
                   </Badge>
                 )}
               </div>
@@ -215,52 +309,84 @@ const SettingsTab = ({ restaurants, sources, onDataChanged }: SettingsTabProps) 
           <CardTitle className="text-base font-medium flex items-center gap-2">
             <Icon name="ListChecks" size={18} className="text-primary" />
             Варианты ответов
+            <span className="text-xs text-muted-foreground font-normal ml-auto">
+              <Icon name="GripVertical" size={12} className="inline mr-1" />
+              Перетащите для сортировки
+            </span>
           </CardTitle>
         </CardHeader>
-        <CardContent className="space-y-3">
-          {sources.map((s) => (
-            <div key={s.id} className="flex items-center gap-3 p-3 rounded-lg bg-muted/50">
+        <CardContent className="space-y-2">
+          {sources.map((s, index) => (
+            <div
+              key={s.id}
+              draggable
+              onDragStart={() => handleDragStart(index)}
+              onDragOver={(e) => handleDragOver(e, index)}
+              onDrop={handleDrop}
+              className="flex items-center gap-2 p-3 rounded-lg bg-muted/50 cursor-grab active:cursor-grabbing hover:bg-muted/80 transition-colors"
+            >
+              <Icon name="GripVertical" size={16} className="text-muted-foreground/50 flex-shrink-0" />
+              <div className="w-8 h-8 rounded bg-primary/5 flex items-center justify-center flex-shrink-0">
+                <Icon name={s.icon} size={16} className="text-primary" />
+              </div>
               {editingSourceId === s.id ? (
-                <>
-                  <Input
-                    value={editSourceLabel}
-                    onChange={(e) => setEditSourceLabel(e.target.value)}
-                    className="flex-1 bg-white"
-                    onKeyDown={(e) => e.key === "Enter" && handleUpdateSource(s.id, { label: editSourceLabel })}
-                  />
-                  <Button size="sm" onClick={() => handleUpdateSource(s.id, { label: editSourceLabel })} disabled={savingSource}>
-                    <Icon name="Check" size={14} />
-                  </Button>
-                  <Button size="sm" variant="ghost" onClick={() => setEditingSourceId(null)}>
-                    <Icon name="X" size={14} />
-                  </Button>
-                </>
+                <Input
+                  value={editSourceLabel}
+                  onChange={(e) => setEditSourceLabel(e.target.value)}
+                  className="flex-1 h-8 bg-white text-sm"
+                  autoFocus
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") handleUpdateSource(s.id, { label: editSourceLabel });
+                    if (e.key === "Escape") setEditingSourceId(null);
+                  }}
+                />
               ) : (
-                <>
-                  <Icon name={s.icon} size={16} className="text-muted-foreground" />
-                  <span className="flex-1 text-sm font-medium">{s.label}</span>
-                  <code className="text-xs text-muted-foreground">{s.key}</code>
-                  <Switch
-                    checked={s.active}
-                    onCheckedChange={(active) => handleUpdateSource(s.id, { active })}
-                  />
-                  <Button size="sm" variant="ghost" onClick={() => { setEditingSourceId(s.id); setEditSourceLabel(s.label); }}>
-                    <Icon name="Pencil" size={14} />
+                <span
+                  className="flex-1 text-sm font-medium cursor-pointer hover:text-primary transition-colors"
+                  onClick={() => { setEditingSourceId(s.id); setEditSourceLabel(s.label); }}
+                >
+                  {s.label}
+                </span>
+              )}
+              <code className="text-[10px] text-muted-foreground/60 bg-white px-1.5 py-0.5 rounded border hidden sm:block">
+                {s.key}
+              </code>
+              <Switch
+                checked={s.active}
+                onCheckedChange={(checked) => handleUpdateSource(s.id, { active: checked })}
+                disabled={savingSource}
+              />
+              {editingSourceId === s.id ? (
+                <div className="flex gap-1">
+                  <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={() => handleUpdateSource(s.id, { label: editSourceLabel })}>
+                    <Icon name="Check" size={12} />
                   </Button>
-                </>
+                  <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={() => setEditingSourceId(null)}>
+                    <Icon name="X" size={12} />
+                  </Button>
+                </div>
+              ) : (
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className="h-7 w-7 p-0 text-destructive hover:text-destructive"
+                  onClick={() => setDeleteSourceId(s.id)}
+                >
+                  <Icon name="Trash2" size={12} />
+                </Button>
               )}
             </div>
           ))}
 
-          <div className="flex gap-2 pt-2 border-t">
+          <div className="flex gap-2 pt-3 border-t">
             <Input
-              placeholder="Ключ (eng)"
+              placeholder="Ключ (англ.)"
               value={newSourceKey}
               onChange={(e) => setNewSourceKey(e.target.value)}
-              className="w-32"
+              className="w-[140px]"
             />
             <Input
-              placeholder="Название варианта"
+              placeholder="Название"
               value={newSourceLabel}
               onChange={(e) => setNewSourceLabel(e.target.value)}
               className="flex-1"
@@ -277,38 +403,67 @@ const SettingsTab = ({ restaurants, sources, onDataChanged }: SettingsTabProps) 
       <Card className="border-border/60">
         <CardHeader>
           <CardTitle className="text-base font-medium flex items-center gap-2">
-            <Icon name="Lock" size={18} className="text-primary" />
-            Пароль админ-панели
+            <Icon name="Shield" size={18} className="text-primary" />
+            Пароль администратора
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="max-w-sm space-y-3">
+          <div className="flex flex-wrap gap-2">
             <Input
               type="password"
-              placeholder="Текущий пароль"
+              placeholder="Старый пароль"
               value={oldPassword}
               onChange={(e) => setOldPassword(e.target.value)}
+              className="w-[200px]"
             />
             <Input
               type="password"
-              placeholder="Новый пароль (мин. 4 символа)"
+              placeholder="Новый пароль"
               value={newPassword}
               onChange={(e) => setNewPassword(e.target.value)}
+              className="w-[200px]"
+              onKeyDown={(e) => e.key === "Enter" && handleChangeAdminPassword()}
             />
-            <Button
-              onClick={handleChangeAdminPassword}
-              disabled={savingPw || !oldPassword || newPassword.length < 4}
-            >
-              {savingPw ? (
-                <Icon name="Loader2" size={16} className="animate-spin mr-1.5" />
-              ) : (
-                <Icon name="Save" size={16} className="mr-1.5" />
-              )}
-              Сохранить
+            <Button onClick={handleChangeAdminPassword} disabled={savingPw || !oldPassword || !newPassword}>
+              Изменить
             </Button>
           </div>
         </CardContent>
       </Card>
+
+      <AlertDialog open={deleteRestId !== null} onOpenChange={(open) => !open && setDeleteRestId(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Удалить ресторан?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Ресторан «{restaurants.find((r) => r.id === deleteRestId)?.name}» и все его ответы будут удалены безвозвратно.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Отмена</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDeleteRestaurant} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+              Удалить
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={deleteSourceId !== null} onOpenChange={(open) => !open && setDeleteSourceId(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Удалить вариант ответа?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Вариант «{sources.find((s) => s.id === deleteSourceId)?.label}» будет удалён. Существующие ответы с этим вариантом сохранятся в статистике.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Отмена</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDeleteSource} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+              Удалить
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };
