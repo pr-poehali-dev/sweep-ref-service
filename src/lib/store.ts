@@ -21,6 +21,11 @@ export interface ResponseRecord {
   created_at: string;
 }
 
+export interface AppSettings {
+  telegram_chat_id: string;
+  telegram_notifications_enabled: boolean;
+}
+
 let backendUrls: Record<string, string> = {};
 
 export async function loadUrls() {

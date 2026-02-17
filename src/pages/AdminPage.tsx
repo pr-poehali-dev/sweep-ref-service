@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import Icon from "@/components/ui/icon";
-import { apiCall, sourceLabel, type Restaurant, type ResponseRecord, type SourceOption } from "@/lib/store";
+import { apiCall, sourceLabel, type Restaurant, type ResponseRecord, type SourceOption, type AppSettings } from "@/lib/store";
 import DashboardTab from "@/components/admin/DashboardTab";
 import ResponsesTab from "@/components/admin/ResponsesTab";
 import SettingsTab from "@/components/admin/SettingsTab";
@@ -15,6 +15,7 @@ const AdminPage = () => {
   const [restaurants, setRestaurants] = useState<Restaurant[]>([]);
   const [responses, setResponses] = useState<ResponseRecord[]>([]);
   const [sources, setSources] = useState<SourceOption[]>([]);
+  const [settings, setSettings] = useState<AppSettings>({ telegram_chat_id: "", telegram_notifications_enabled: false });
   const [selectedRestaurant, setSelectedRestaurant] = useState<string>("all");
   const [dateRange, setDateRange] = useState<string>("all");
   const [loading, setLoading] = useState(true);
@@ -38,6 +39,7 @@ const AdminPage = () => {
       setRestaurants(data.restaurants || []);
       setResponses(data.responses || []);
       setSources(data.sources || []);
+      if (data.settings) setSettings(data.settings);
     } catch {
       localStorage.removeItem("sweep_token");
       navigate("/login");
@@ -156,6 +158,7 @@ const AdminPage = () => {
             <SettingsTab
               restaurants={restaurants}
               sources={sources}
+              settings={settings}
               onDataChanged={fetchData}
             />
           </TabsContent>
