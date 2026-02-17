@@ -1,0 +1,38 @@
+{
+  "tests": [
+    {
+      "name": "Get restaurants",
+      "method": "POST",
+      "path": "/",
+      "body": {"action": "get_restaurants"},
+      "expectedStatus": 200
+    },
+    {
+      "name": "Add response",
+      "method": "POST",
+      "path": "/",
+      "body": {"action": "add_response", "restaurant_id": 1, "source": "instagram"},
+      "expectedStatus": 200,
+      "expectedBody": {"ok": true},
+      "bodyMatcher": "partial"
+    },
+    {
+      "name": "Login with wrong creds",
+      "method": "POST",
+      "path": "/",
+      "body": {"action": "login", "username": "wrong", "password": "wrong"},
+      "expectedStatus": 401,
+      "expectedBody": {"error": "string"},
+      "bodyMatcher": "partial"
+    },
+    {
+      "name": "Get stats unauthorized",
+      "method": "POST",
+      "path": "/",
+      "body": {"action": "get_stats"},
+      "expectedStatus": 401,
+      "expectedBody": {"error": "string"},
+      "bodyMatcher": "partial"
+    }
+  ]
+}
