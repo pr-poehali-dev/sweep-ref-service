@@ -61,10 +61,8 @@ const HostessPage = () => {
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-white flex flex-col">
       <div className="flex-1 flex flex-col items-center justify-center p-4 max-w-lg mx-auto w-full">
         <div className="text-center mb-8 animate-fade-in">
-          <div className="w-12 h-12 bg-primary rounded-xl flex items-center justify-center mx-auto mb-4">
-            <Icon name="Utensils" size={24} className="text-white" />
-          </div>
-          <h1 className="text-2xl font-bold text-foreground mb-1">Sweep REF</h1>
+          <img src="https://cdn.poehali.dev/projects/28c0c781-3d61-4cce-9755-515e9e1a816f/bucket/b439f2b5-53cb-429b-8e86-856855395be6.png" alt="Sweep" className="h-8 mx-auto mb-3" />
+          <p className="text-sm font-medium text-muted-foreground">REF</p>
           {restaurants.length > 1 && (
             <div className="mt-4 flex gap-2 flex-wrap justify-center">
               {restaurants.map((r) => (

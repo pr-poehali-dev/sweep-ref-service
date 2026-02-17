@@ -34,10 +34,7 @@ const LoginPage = () => {
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-white p-4">
       <Card className="w-full max-w-sm animate-scale-in border-border/60">
         <CardHeader className="text-center pb-2">
-          <div className="w-12 h-12 bg-primary rounded-xl flex items-center justify-center mx-auto mb-3">
-            <Icon name="Lock" size={24} className="text-white" />
-          </div>
-          <h1 className="text-xl font-semibold">Sweep REF</h1>
+          <img src="https://cdn.poehali.dev/projects/28c0c781-3d61-4cce-9755-515e9e1a816f/bucket/b439f2b5-53cb-429b-8e86-856855395be6.png" alt="Sweep" className="h-7 mx-auto mb-3" />
           <p className="text-sm text-muted-foreground">Вход в админ-панель</p>
         </CardHeader>
         <CardContent>

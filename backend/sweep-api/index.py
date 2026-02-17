@@ -27,6 +27,11 @@ def verify_token(token):
     except:
         return None
 
+def check_auth(event):
+    auth = event.get("headers", {}).get("X-Authorization", "") or event.get("headers", {}).get("Authorization", "")
+    token = auth.replace("Bearer ", "")
+    return verify_token(token)
+
 def get_db():
     return psycopg2.connect(os.environ["DATABASE_URL"])
 
@@ -101,9 +106,7 @@ def handler(event, context):
         return {"statusCode": 200, "headers": cors, "body": json.dumps({"token": token})}
 
     if action == "get_stats":
-        auth = event.get("headers", {}).get("X-Authorization", "") or event.get("headers", {}).get("Authorization", "")
-        token = auth.replace("Bearer ", "")
-        user_id = verify_token(token)
+        user_id = check_auth(event)
         if not user_id:
             return {"statusCode": 401, "headers": cors, "body": json.dumps({"error": "Unauthorized"})}
         conn = get_db()
@@ -122,5 +125,63 @@ def handler(event, context):
             "headers": cors,
             "body": json.dumps({"restaurants": restaurants, "responses": responses}),
         }
+
+    if action == "create_restaurant":
+        user_id = check_auth(event)
+        if not user_id:
+            return {"statusCode": 401, "headers": cors, "body": json.dumps({"error": "Unauthorized"})}
+        name = body.get("name", "").strip()
+        if not name:
+            return {"statusCode": 400, "headers": cors, "body": json.dumps({"error": "Name required"})}
+        conn = get_db()
+        cur = conn.cursor()
+        cur.execute("INSERT INTO restaurants (name) VALUES (%s) RETURNING id", (name,))
+        new_id = cur.fetchone()[0]
+        conn.commit()
+        cur.close()
+        conn.close()
+        return {"statusCode": 200, "headers": cors, "body": json.dumps({"ok": True, "id": new_id})}
+
+    if action == "rename_restaurant":
+        user_id = check_auth(event)
+        if not user_id:
+            return {"statusCode": 401, "headers": cors, "body": json.dumps({"error": "Unauthorized"})}
+        rid = body.get("restaurant_id")
+        name = body.get("name", "").strip()
+        if not rid or not name:
+            return {"statusCode": 400, "headers": cors, "body": json.dumps({"error": "Missing fields"})}
+        conn = get_db()
+        cur = conn.cursor()
+        cur.execute("UPDATE restaurants SET name = %s WHERE id = %s", (name, rid))
+        conn.commit()
+        cur.close()
+        conn.close()
+        return {"statusCode": 200, "headers": cors, "body": json.dumps({"ok": True})}
+
+    if action == "change_password":
+        user_id = check_auth(event)
+        if not user_id:
+            return {"statusCode": 401, "headers": cors, "body": json.dumps({"error": "Unauthorized"})}
+        old_pw = body.get("old_password", "")
+        new_pw = body.get("new_password", "")
+        if not old_pw or not new_pw:
+            return {"statusCode": 400, "headers": cors, "body": json.dumps({"error": "Missing fields"})}
+        if len(new_pw) < 4:
+            return {"statusCode": 400, "headers": cors, "body": json.dumps({"error": "Password too short"})}
+        old_hash = hashlib.sha256(old_pw.encode()).hexdigest()
+        conn = get_db()
+        cur = conn.cursor()
+        cur.execute("SELECT id FROM admin_users WHERE id = %s AND password_hash = %s", (user_id, old_hash))
+        row = cur.fetchone()
+        if not row:
+            cur.close()
+            conn.close()
+            return {"statusCode": 400, "headers": cors, "body": json.dumps({"error": "Wrong old password"})}
+        new_hash = hashlib.sha256(new_pw.encode()).hexdigest()
+        cur.execute("UPDATE admin_users SET password_hash = %s WHERE id = %s", (new_hash, user_id))
+        conn.commit()
+        cur.close()
+        conn.close()
+        return {"statusCode": 200, "headers": cors, "body": json.dumps({"ok": True})}
 
     return {"statusCode": 400, "headers": cors, "body": json.dumps({"error": "Unknown action"})}
