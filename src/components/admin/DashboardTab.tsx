@@ -9,7 +9,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import Icon from "@/components/ui/icon";
-import { SOURCES, type Restaurant, type ResponseRecord } from "@/lib/store";
+import { sourceLabel, type Restaurant, type ResponseRecord, type SourceOption } from "@/lib/store";
 import {
   BarChart,
   Bar,
@@ -27,13 +27,10 @@ import {
 
 const COLORS = ["#2563eb", "#3b82f6", "#60a5fa", "#93c5fd", "#bfdbfe", "#7c3aed"];
 
-const sourceLabel = (id: string) =>
-  SOURCES.find((s) => s.id === id)?.label || id;
-
 interface DashboardTabProps {
   restaurants: Restaurant[];
   filtered: ResponseRecord[];
-  responses: ResponseRecord[];
+  sources: SourceOption[];
   selectedRestaurant: string;
   setSelectedRestaurant: (v: string) => void;
   dateRange: string;
@@ -45,7 +42,7 @@ interface DashboardTabProps {
 const DashboardTab = ({
   restaurants,
   filtered,
-  responses,
+  sources,
   selectedRestaurant,
   setSelectedRestaurant,
   dateRange,
@@ -59,21 +56,21 @@ const DashboardTab = ({
       counts[r.source] = (counts[r.source] || 0) + 1;
     });
     return Object.entries(counts)
-      .map(([name, value]) => ({ name: sourceLabel(name), value }))
+      .map(([key, value]) => ({ name: sourceLabel(key, sources), value }))
       .sort((a, b) => b.value - a.value);
-  }, [filtered]);
+  }, [filtered, sources]);
 
   const barData = useMemo(() => {
     const counts: Record<string, number> = {};
     filtered.forEach((r) => {
       counts[r.source] = (counts[r.source] || 0) + 1;
     });
-    return SOURCES.map((s) => ({
+    return sources.filter(s => s.active).map((s) => ({
       name: s.label.length > 16 ? s.label.slice(0, 16) + "…" : s.label,
       fullName: s.label,
-      count: counts[s.id] || 0,
+      count: counts[s.key] || 0,
     }));
-  }, [filtered]);
+  }, [filtered, sources]);
 
   const lineData = useMemo(() => {
     const dateMap: Record<string, number> = {};
@@ -90,7 +87,7 @@ const DashboardTab = ({
   }, [filtered]);
 
   const topSource = pieData[0]?.name || "—";
-  const todayCount = responses.filter((r) => {
+  const todayCount = filtered.filter((r) => {
     const d = new Date(r.created_at);
     const now = new Date();
     return d.toDateString() === now.toDateString();

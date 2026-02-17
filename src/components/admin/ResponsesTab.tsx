@@ -14,14 +14,12 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { SOURCES, type Restaurant, type ResponseRecord } from "@/lib/store";
-
-const sourceLabel = (id: string) =>
-  SOURCES.find((s) => s.id === id)?.label || id;
+import { sourceLabel, type Restaurant, type ResponseRecord, type SourceOption } from "@/lib/store";
 
 interface ResponsesTabProps {
   restaurants: Restaurant[];
   filtered: ResponseRecord[];
+  sources: SourceOption[];
   selectedRestaurant: string;
   setSelectedRestaurant: (v: string) => void;
   dateRange: string;
@@ -31,6 +29,7 @@ interface ResponsesTabProps {
 const ResponsesTab = ({
   restaurants,
   filtered,
+  sources,
   selectedRestaurant,
   setSelectedRestaurant,
   dateRange,
@@ -93,7 +92,7 @@ const ResponsesTab = ({
                         {restaurants.find((rest) => rest.id === r.restaurant_id)?.name}
                       </TableCell>
                       <TableCell className="text-sm font-medium">
-                        {sourceLabel(r.source)}
+                        {sourceLabel(r.source, sources)}
                       </TableCell>
                     </TableRow>
                   ))

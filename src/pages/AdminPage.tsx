@@ -3,20 +3,18 @@ import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import Icon from "@/components/ui/icon";
-import { SOURCES, apiCall, type Restaurant, type ResponseRecord } from "@/lib/store";
+import { apiCall, sourceLabel, type Restaurant, type ResponseRecord, type SourceOption } from "@/lib/store";
 import DashboardTab from "@/components/admin/DashboardTab";
 import ResponsesTab from "@/components/admin/ResponsesTab";
 import SettingsTab from "@/components/admin/SettingsTab";
 
 const LOGO_URL = "https://cdn.poehali.dev/projects/28c0c781-3d61-4cce-9755-515e9e1a816f/bucket/b439f2b5-53cb-429b-8e86-856855395be6.png";
 
-const sourceLabel = (id: string) =>
-  SOURCES.find((s) => s.id === id)?.label || id;
-
 const AdminPage = () => {
   const navigate = useNavigate();
   const [restaurants, setRestaurants] = useState<Restaurant[]>([]);
   const [responses, setResponses] = useState<ResponseRecord[]>([]);
+  const [sources, setSources] = useState<SourceOption[]>([]);
   const [selectedRestaurant, setSelectedRestaurant] = useState<string>("all");
   const [dateRange, setDateRange] = useState<string>("all");
   const [loading, setLoading] = useState(true);
@@ -39,6 +37,7 @@ const AdminPage = () => {
       });
       setRestaurants(data.restaurants || []);
       setResponses(data.responses || []);
+      setSources(data.sources || []);
     } catch {
       localStorage.removeItem("sweep_token");
       navigate("/login");
@@ -67,7 +66,7 @@ const AdminPage = () => {
     const rows = filtered.map((r) => [
       new Date(r.created_at).toLocaleString("ru-RU"),
       restaurants.find((rest) => rest.id === r.restaurant_id)?.name || "",
-      sourceLabel(r.source),
+      sourceLabel(r.source, sources),
     ]);
     const csv = [headers, ...rows].map((row) => row.join(";")).join("\n");
     const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8" });
@@ -101,10 +100,6 @@ const AdminPage = () => {
             <span className="text-sm font-medium text-muted-foreground">REF</span>
           </div>
           <div className="flex items-center gap-2">
-            <Button variant="ghost" size="sm" onClick={() => navigate("/")}>
-              <Icon name="Monitor" size={16} />
-              <span className="ml-1.5 hidden sm:inline">Хостес</span>
-            </Button>
             <Button variant="ghost" size="sm" onClick={logout}>
               <Icon name="LogOut" size={16} />
               <span className="ml-1.5 hidden sm:inline">Выйти</span>
@@ -134,7 +129,7 @@ const AdminPage = () => {
             <DashboardTab
               restaurants={restaurants}
               filtered={filtered}
-              responses={responses}
+              sources={sources}
               selectedRestaurant={selectedRestaurant}
               setSelectedRestaurant={setSelectedRestaurant}
               dateRange={dateRange}
@@ -148,6 +143,7 @@ const AdminPage = () => {
             <ResponsesTab
               restaurants={restaurants}
               filtered={filtered}
+              sources={sources}
               selectedRestaurant={selectedRestaurant}
               setSelectedRestaurant={setSelectedRestaurant}
               dateRange={dateRange}
@@ -158,6 +154,7 @@ const AdminPage = () => {
           <TabsContent value="settings" className="space-y-6">
             <SettingsTab
               restaurants={restaurants}
+              sources={sources}
               onDataChanged={fetchData}
             />
           </TabsContent>
